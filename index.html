@@ -169,6 +169,20 @@ tr:hover td{background:rgba(255,255,255,.02);}
 .link-btn.dark{background:var(--dark-5);color:var(--text-dim);border:1px solid var(--border);}
 .link-btn.dark:hover{color:var(--text);}
 
+/* TOP MOBILES */
+.top-mob-wrap{padding:14px 18px;border-top:1px solid var(--border);background:var(--dark-2);}
+.top-mob-title{font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:2px;color:var(--gold);margin-bottom:10px;display:flex;align-items:center;gap:8px;}
+.top-mob-title::after{content:'';flex:1;height:1px;background:var(--border);}
+.top-mob-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;}
+.top-mob-item{display:flex;align-items:center;gap:10px;background:var(--dark-3);border:1px solid var(--border);border-radius:8px;padding:8px 10px;}
+.top-mob-rank{font-family:'Bebas Neue',sans-serif;font-size:20px;min-width:22px;text-align:center;color:var(--text-muted);}
+.top-mob-rank.r1{color:#FFD700;}.top-mob-rank.r2{color:#C0C0C0;}.top-mob-rank.r3{color:#CD7F32;}
+.top-mob-info{flex:1;min-width:0;}
+.top-mob-name{font-size:12px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.top-mob-ca{font-size:10px;color:var(--text-muted);font-weight:600;}
+.top-mob-qty{font-family:'Bebas Neue',sans-serif;font-size:18px;color:var(--gold);letter-spacing:1px;}
+.top-mob-empty{font-size:11px;color:var(--text-muted);font-style:italic;padding:8px 0;}
+
 /* LOADING */
 .loading-overlay{position:fixed;inset:0;background:var(--dark);z-index:999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;transition:opacity .5s;}
 .loading-overlay.hidden{opacity:0;pointer-events:none;}
@@ -504,6 +518,7 @@ let state={
   vendeurs:JSON.parse(JSON.stringify(VENDEURS_DEFAULT)),
   goodays:JSON.parse(JSON.stringify(GOODAYS_DEFAULT)),
   dilax:{ALR:0,CHOLET:0,TLR:0,CLR:0,RLR:0,VLR:0},
+  topMobiles:{ALR:[],CHOLET:[],TLR:[],CLR:[],RLR:[],VLR:[]},
   joursOuvresEcoules:1,joursOuvresTotal:22,
   n1:null, // sera rempli dynamiquement selon le jour ouvré actuel
   lastUpdate:null,
@@ -546,6 +561,21 @@ async function fetchGoodaysFromSheet(){
   const json=await fetchSheet('Goodays');if(!json?.table?.rows)return false;
   const gs=json.table.rows.map(row=>{const c=row.c;return{boutique:c[0]?.v||'',code:c[1]?.v||'',note:parseFloat(c[2]?.v||0),participations:parseInt(c[3]?.v||0),avisGoogle:parseInt(c[4]?.v||0)};}).filter(g=>g.code);
   if(gs.length>0){state.goodays=gs;return true;}return false;
+}
+
+async function fetchTopMobilesFromSheet(){
+  // Onglet "TopMobiles" attendu : col A = code boutique (ALR/CHOLET/TLR/CLR/RLR/VLR),
+  // col B = modèle, col C = quantité, col D (optionnel) = CA en €
+  const json=await fetchSheet('TopMobiles');if(!json?.table?.rows)return false;
+  const tm={ALR:[],CHOLET:[],TLR:[],CLR:[],RLR:[],VLR:[]};
+  json.table.rows.forEach(row=>{
+    const c=row.c;if(!c||!c[0]||!c[1])return;
+    const code=String(c[0].v).trim().toUpperCase();
+    if(!tm[code])return;
+    tm[code].push({modele:String(c[1].v).trim(),qte:parseInt(c[2]?.v||0),ca:parseFloat(c[3]?.v||0)});
+  });
+  Object.keys(tm).forEach(k=>{tm[k].sort((a,b)=>b.qte-a.qte);tm[k]=tm[k].slice(0,5);});
+  state.topMobiles=tm;return true;
 }
 
 async function fetchDilaxFromSheet(){
@@ -696,7 +726,13 @@ function renderBoutiquePanels(){
       const vp=jo>0?v.marge/jo*jt:0,it=getItem(v),ta2=v.mob>0?Math.round(v.assu/v.mob*100):0,tc=v.mob>0?Math.round(v.cyber/v.mob*100):0,atteint=vp>=CONFIG.objectifVendeur;
       return`<tr class="${atteint?'row-ok':'row-ko'}"><td style="text-align:left;padding-left:18px"><span class="rank ${RCLS[i]}">${RANGS[i]}</span></td><td style="text-align:left"><div class="vendor-name">${v.nom}</div><div class="vendor-role">${v.role} · ${v.joursT}j</div></td><td><span class="marge-val">${fE(v.marge)}</span></td><td style="color:var(--blue);font-family:'Bebas Neue',sans-serif;font-size:15px">${fE(vp)}</td><td>${v.mob}</td><td><div class="progress-wrap"><div class="progress-bar"><div class="progress-fill ${ta2>=70?'green':ta2>=45?'orange':'red'}" style="width:${Math.min(ta2,100)}%"></div></div><span class="progress-pct" style="color:${ta2>=70?'var(--green)':ta2>=45?'var(--orange)':'var(--red)'}">${ta2}%</span></div></td><td><div class="progress-wrap"><div class="progress-bar"><div class="progress-fill ${tc>=50?'green':''}" style="width:${Math.min(tc,100)}%"></div></div><span class="progress-pct">${v.cyber}</span></div></td><td>${v.g3a}</td><td>${fE(v.access)}</td><td><span class="item-pill ${it.key}">${it.label}</span></td><td><span class="obj-badge ${atteint?'ok':'ko'}">${atteint?'✅':'❌'}</span></td></tr>`;
     }).join('');
-    panel.innerHTML=`<div class="boutique-detail-wrap"><div class="bdh"><div><div class="bdh-title">${b.nom.toUpperCase()}</div>${diffPct!==null?`<div class="bdh-n1 ${diffPct>=0?'up':'down'}">${diffPct>=0?'▲':'▼'} ${diffPct>=0?'+':''}${diffPct}% vs N-1 même période (${fE(n1b?.marge||0)})</div>`:''}</div><div class="bdh-kpis"><div class="bdh-kpi"><div class="bdh-kpi-val gold">${fE(m)}</div><div class="bdh-kpi-lbl">Marge</div></div><div class="bdh-kpi"><div class="bdh-kpi-val blue">${fE(proj)}</div><div class="bdh-kpi-lbl">Proj.</div></div><div class="bdh-kpi"><div class="bdh-kpi-val">${mob}</div><div class="bdh-kpi-lbl">Mob</div></div><div class="bdh-kpi"><div class="bdh-kpi-val">${ta}%</div><div class="bdh-kpi-lbl">Assu</div></div><div class="bdh-kpi"><div class="bdh-kpi-val">${cyber}</div><div class="bdh-kpi-lbl">Cyber</div></div><div class="bdh-kpi"><div class="bdh-kpi-val">${g3a}</div><div class="bdh-kpi-lbl">G3A</div></div><div class="bdh-kpi"><div class="bdh-kpi-val">${fE(acc)}</div><div class="bdh-kpi-lbl">Access.</div></div>${vis?`<div class="bdh-kpi"><div class="bdh-kpi-val" style="color:var(--green)">${panier}</div><div class="bdh-kpi-lbl">Panier</div></div>`:''} ${note>0?`<div class="bdh-kpi"><div class="bdh-kpi-val" style="color:${note>=4.7?'var(--green)':note>=4.5?'var(--orange)':'var(--red)'}">${fDec(note)}</div><div class="bdh-kpi-lbl">Goodays</div></div>`:''}</div></div><div class="table-wrap"><table><thead><tr><th style="text-align:left;padding-left:18px">#</th><th style="text-align:left">Vendeur</th><th>Marge</th><th>Proj.</th><th>Mob</th><th>Assu%</th><th>Cyber</th><th>G3A</th><th>Access.</th><th>Item↑</th><th>Obj.</th></tr></thead><tbody>${rows}</tbody></table></div><div class="links-bar"><a href="${CONFIG.links3gwin[b.code]}" target="_blank" class="link-btn gold">↗ 3GWIN ${b.nom}</a><a href="${CONFIG.goodaysUrl}" target="_blank" class="link-btn dark">⭐ Goodays</a><a href="${CONFIG.dilaxUrl}" target="_blank" class="link-btn dark">👣 DILAX</a></div></div>`;
+    const topM=(state.topMobiles?.[b.code]||[]).slice(0,5);
+    const topMobHtml=topM.length>0
+      ? topM.map((tm,idx)=>`<div class="top-mob-item"><div class="top-mob-rank ${RCLS[idx]}">${idx+1}</div><div class="top-mob-info"><div class="top-mob-name">${tm.modele}</div>${tm.ca>0?`<div class="top-mob-ca">${fE(tm.ca)}</div>`:''}</div><div class="top-mob-qty">${tm.qte}</div></div>`).join('')
+      : `<div class="top-mob-empty">Aucune donnée — ajouter l'onglet « TopMobiles » dans Google Sheets (colonnes : boutique, modèle, quantité, CA).</div>`;
+    const topMobSection=`<div class="top-mob-wrap"><div class="top-mob-title">🏆 Top 5 mobiles les plus vendus</div><div class="top-mob-list">${topMobHtml}</div></div>`;
+
+    panel.innerHTML=`<div class="boutique-detail-wrap"><div class="bdh"><div><div class="bdh-title">${b.nom.toUpperCase()}</div>${diffPct!==null?`<div class="bdh-n1 ${diffPct>=0?'up':'down'}">${diffPct>=0?'▲':'▼'} ${diffPct>=0?'+':''}${diffPct}% vs N-1 même période (${fE(n1b?.marge||0)})</div>`:''}</div><div class="bdh-kpis"><div class="bdh-kpi"><div class="bdh-kpi-val gold">${fE(m)}</div><div class="bdh-kpi-lbl">Marge</div></div><div class="bdh-kpi"><div class="bdh-kpi-val blue">${fE(proj)}</div><div class="bdh-kpi-lbl">Proj.</div></div><div class="bdh-kpi"><div class="bdh-kpi-val">${mob}</div><div class="bdh-kpi-lbl">Mob</div></div><div class="bdh-kpi"><div class="bdh-kpi-val">${ta}%</div><div class="bdh-kpi-lbl">Assu</div></div><div class="bdh-kpi"><div class="bdh-kpi-val">${cyber}</div><div class="bdh-kpi-lbl">Cyber</div></div><div class="bdh-kpi"><div class="bdh-kpi-val">${g3a}</div><div class="bdh-kpi-lbl">G3A</div></div><div class="bdh-kpi"><div class="bdh-kpi-val">${fE(acc)}</div><div class="bdh-kpi-lbl">Access.</div></div>${vis?`<div class="bdh-kpi"><div class="bdh-kpi-val" style="color:var(--green)">${panier}</div><div class="bdh-kpi-lbl">Panier</div></div>`:''} ${note>0?`<div class="bdh-kpi"><div class="bdh-kpi-val" style="color:${note>=4.7?'var(--green)':note>=4.5?'var(--orange)':'var(--red)'}">${fDec(note)}</div><div class="bdh-kpi-lbl">Goodays</div></div>`:''}</div></div><div class="table-wrap"><table><thead><tr><th style="text-align:left;padding-left:18px">#</th><th style="text-align:left">Vendeur</th><th>Marge</th><th>Proj.</th><th>Mob</th><th>Assu%</th><th>Cyber</th><th>G3A</th><th>Access.</th><th>Item↑</th><th>Obj.</th></tr></thead><tbody>${rows}</tbody></table></div>${topMobSection}<div class="links-bar"><a href="${CONFIG.links3gwin[b.code]}" target="_blank" class="link-btn gold">↗ 3GWIN ${b.nom}</a><a href="${CONFIG.goodaysUrl}" target="_blank" class="link-btn dark">⭐ Goodays</a><a href="${CONFIG.dilaxUrl}" target="_blank" class="link-btn dark">👣 DILAX</a></div></div>`;
   });
 }
 
@@ -749,7 +785,7 @@ async function refreshData(){
   // N-1 au même jour ouvré
   state.n1=getN1AtDay(je);
 
-  await Promise.all([fetchFromSheet(),fetchGoodaysFromSheet(),fetchDilaxFromSheet()]);
+  await Promise.all([fetchFromSheet(),fetchGoodaysFromSheet(),fetchDilaxFromSheet(),fetchTopMobilesFromSheet()]);
   state.lastUpdate=new Date();
   document.getElementById('lastUpdateDisplay').textContent=state.lastUpdate.toLocaleDateString('fr-FR')+' à '+state.lastUpdate.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
   renderJours();renderSynthese();renderClassement();renderGoodays();
